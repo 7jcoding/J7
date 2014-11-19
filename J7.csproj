@@ -49,6 +49,7 @@
     <Compile Include="IO\FileExtend.cs" />
     <Compile Include="IO\ImageExtend.cs" />
     <Compile Include="Net\FinalHtml.cs" />
+    <Compile Include="Net\FtpClient.cs" />
     <Compile Include="Net\UserAgent.cs" />
     <Compile Include="Net\WebPick.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
