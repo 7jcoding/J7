@@ -16,10 +16,10 @@ namespace J7.Utility
         /// </summary>
         /// <param name="timeStamp">Unix时间戳</param>
         /// <returns></returns>
-        public static DateTime TimeSpanToDateTime(int timeStamp)
+        public static DateTime UnixTimestampToDateTime(long timestamp)
         {
             DateTime dtStart = TimeZone.CurrentTimeZone.ToLocalTime(new DateTime(1970, 1, 1));
-            long lTime = long.Parse(timeStamp.ToString() + "0000000");
+            long lTime = long.Parse(timestamp.ToString() + "0000000");
             TimeSpan toNow = new TimeSpan(lTime);
             return dtStart.Add(toNow);
         }
@@ -29,10 +29,10 @@ namespace J7.Utility
         /// </summary>
         /// <param name="time">DateTime时间格式</param>
         /// <returns></returns> 
-        public static int DateTimeToTimeSpan(DateTime time)
+        public static long DateTimeToUnixTimestamp(DateTime time)
         {
             DateTime startTime = TimeZone.CurrentTimeZone.ToLocalTime(new System.DateTime(1970, 1, 1));
-            return (int)(time - startTime).TotalSeconds;
+            return (long)((time - startTime).TotalSeconds);
         }
 
         /// <summary>
