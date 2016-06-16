@@ -48,6 +48,7 @@
   <ItemGroup>
     <Compile Include="IO\FileExtend.cs" />
     <Compile Include="IO\ImageExtend.cs" />
+    <Compile Include="Net\WebCache.cs" />
     <Compile Include="Net\FinalHtml.cs" />
     <Compile Include="Net\FtpClient.cs" />
     <Compile Include="Net\UserAgent.cs" />
