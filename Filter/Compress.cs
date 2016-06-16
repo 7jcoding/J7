@@ -20,7 +20,7 @@ namespace J7.Filter
             var response = filterContext.HttpContext.Response;
             acceptEncoding = acceptEncoding.ToUpperInvariant();
 
-            // alter by John Lou 20140319 对于服务端发起的子请求(如，Html.Action)没有Filter，跳过压缩
+            // 对于服务端发起的子请求(如，Html.Action)没有Filter，跳过压缩
             if (response.Filter != null)
             {
                 if (acceptEncoding.Contains("GZIP"))
