@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.IO;
+using System.IO.Compression;
+using System.Net;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -481,6 +483,233 @@ namespace J7.IO
         }
 
         #endregion
+
+        /// <summary>
+        /// 读取网络资源，返回字节数组
+        /// </summary>
+        /// <param name="url"></param>
+        /// <param name="cookie"></param>
+        /// <param name="postData"></param>
+        /// <param name="contentType"></param>
+        /// <returns></returns>
+        public byte[] GetBytes(string url, CookieContainer cookie, byte[] postData, string contentType)
+        {
+            try
+            {
+                int c = url.IndexOf("/", 10);
+                byte[] data = null;
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
+                request.Timeout = 3000;
+                request.AllowAutoRedirect = true;
+                if (cookie != null) request.CookieContainer = cookie;
+                request.Referer = (c > 0 ? url.Substring(0, c) : url);
+                request.UserAgent = "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)";
+                request.Headers[HttpRequestHeader.AcceptEncoding] = "gzip, deflate";
+
+                if (postData != null)                                           // 需要 Post 数据
+                {
+                    request.Method = "POST";
+                    if (contentType == null) contentType = "application/x-www-form-urlencoded";
+                    request.ContentType = contentType;
+                    request.ContentLength = postData.Length;
+                    Stream requestStream = request.GetRequestStream();
+                    requestStream.Write(postData, 0, postData.Length);
+                    requestStream.Close();
+                }
+
+                HttpWebResponse response = (HttpWebResponse)request.GetResponse();
+                //cookies= response.Cookies;
+                //wc=response.Headers;
+                string ce = response.Headers[HttpResponseHeader.ContentEncoding];
+                int ContentLength = (int)response.ContentLength;
+                Stream s = response.GetResponseStream();
+                c = 1024 * 10;
+                if (ContentLength < 0)                                          // 不能获取数据的长度
+                {
+                    data = new byte[c];
+                    MemoryStream ms = new MemoryStream();
+                    int l = s.Read(data, 0, c);
+                    while (l > 0)
+                    {
+                        ms.Write(data, 0, l);
+                        l = s.Read(data, 0, c);
+                    }
+                    data = ms.ToArray();
+                    ms.Close();
+                }
+                else                                                            // 数据长度已知
+                {
+                    data = new byte[ContentLength];
+                    int pos = 0;
+                    while (ContentLength > 0)
+                    {
+                        int l = s.Read(data, pos, ContentLength);
+                        pos += l;
+                        ContentLength -= l;
+                    }
+                }
+                s.Close();
+                response.Close();
+
+                if (ce == "gzip")                                               // 若数据是压缩格式，则要进行解压
+                {
+                    //MemoryStream js = new MemoryStream();                       // 解压后的流   
+                    //MemoryStream ms = new MemoryStream(data);                   // 用于解压的流   
+                    //GZipStream g = new GZipStream(ms, CompressionMode.Decompress);
+                    //byte[] buffer = new byte[c];                                // 读数据缓冲区      
+                    //int l = g.Read(buffer, 0, c);                               // 一次读 10K      
+                    //while (l > 0)
+                    //{
+                    //    js.Write(buffer, 0, l);
+                    //    l = g.Read(buffer, 0, c);
+                    //}
+                    //g.Close();
+                    //ms.Close();
+                    //data = js.ToArray();
+                    //js.Close();
+                    UnRAR(ref data);
+                }
+                return data;                                                    // 返回字节数组
+            }
+            catch
+            {
+                return new byte[0];
+            }
+        }
+
+        private byte[] UnRAR(ref  byte[] data)     // 解压数据
+        {
+            try
+            {
+                MemoryStream js = new MemoryStream();                       // 解压后的流   
+                MemoryStream ms = new MemoryStream(data);                   // 用于解压的流   
+                GZipStream g = new GZipStream(ms, CompressionMode.Decompress);
+                byte[] buffer = new byte[10240];                                // 读数据缓冲区      
+                int l = g.Read(buffer, 0, 10240);                               // 一次读 10K      
+                while (l > 0)
+                {
+                    js.Write(buffer, 0, l);
+                    l = g.Read(buffer, 0, 10240);
+                }
+                g.Close();
+                ms.Close();
+                data = js.ToArray();
+                js.Close();
+                return data;
+            }
+            catch
+            {
+                return data;
+            }
+        }
+
+        /// <summary>
+        /// 将图片转换成流数据，参数是图片路径:返回Byte[]类型
+        /// </summary>
+        /// <param name="imagePath">图片的路径</param>
+        /// <returns></returns>
+        public byte[] GetPictureData(string imagePath)
+        {
+            FileStream fs = new FileStream(imagePath, FileMode.Open);
+            byte[] byteData = new byte[fs.Length];
+            fs.Read(byteData, 0, byteData.Length);
+            fs.Close();
+            return byteData;
+        }
+
+        /// <summary>
+        /// 将 Stream 转成 byte[]
+        /// </summary>
+        /// <param name="stream"></param>
+        /// <returns></returns>
+        public byte[] StreamToBytes(Stream stream)
+        {
+            byte[] bytes = new byte[stream.Length];
+            stream.Read(bytes, 0, bytes.Length);
+            // 设置当前流的位置为流的开始 
+            stream.Seek(0, SeekOrigin.Begin);
+            return bytes;
+        }
+
+        /// <summary>
+        /// 将 byte[] 转成 Stream
+        /// </summary>
+        /// <param name="bytes"></param>
+        /// <returns></returns>
+        public Stream BytesToStream(byte[] bytes)
+        {
+            Stream stream = new MemoryStream(bytes);
+            return stream;
+        }
+        /// <summary>
+        /// 对上传的图片进行等比缩放
+        /// </summary>
+        /// <param name="fromFile">获取文件流Stream</param>
+        /// <param name="fileSaveUrl">缩略图保存完整路径</param>
+        /// <param name="targetWidth">模板宽度</param>
+        /// <param name="targetHeight">模板高度</param>
+        public static bool ZoomPic(Stream fromFile, string fileSaveUrl, double targetWidth, double targetHeight)
+        {
+            bool isSuccess = false;
+            //原始图片（获取原始图片创建对象，并使用流中嵌入的颜色管理信息）
+            System.Drawing.Image initImage = System.Drawing.Image.FromStream(fromFile, true);
+            //原图宽高均小于模版，不作处理，直接保存
+            if (initImage.Width <= targetWidth && initImage.Height <= targetHeight)
+            {
+                //保存
+                initImage.Save(fileSaveUrl, System.Drawing.Imaging.ImageFormat.Jpeg);
+            }
+            else
+            {
+                //缩略图宽、高计算
+                double newWidth = initImage.Width;
+                double newHeight = initImage.Height;
+                //宽大于高或宽等于高（横图或正方）
+                if (initImage.Width > initImage.Height || initImage.Width == initImage.Height)
+                {
+                    //如果宽大于模版
+                    if (initImage.Width > targetWidth)
+                    {
+                        //宽按模版，高按比例缩放
+                        newWidth = targetWidth;
+                        newHeight = initImage.Height * (targetWidth / initImage.Width);
+                    }
+                }
+                //高大于宽（竖图）
+                else
+                {
+                    //如果高大于模版
+                    if (initImage.Height > targetHeight)
+                    {
+                        //高按模版，宽按比例缩放
+                        newHeight = targetHeight;
+                        newWidth = initImage.Width * (targetHeight / initImage.Height);
+                    }
+                }
+
+                //生成新图
+                //新建一个bmp图片
+                System.Drawing.Image newImage = new System.Drawing.Bitmap((int)newWidth, (int)newHeight);
+                //新建一个画板
+                System.Drawing.Graphics newG = System.Drawing.Graphics.FromImage(newImage);
+                //设置质量
+                newG.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                newG.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+
+                //置背景色
+                newG.Clear(Color.White);
+                //画图
+                newG.DrawImage(initImage, new System.Drawing.Rectangle(0, 0, newImage.Width, newImage.Height), new System.Drawing.Rectangle(0, 0, initImage.Width, initImage.Height), System.Drawing.GraphicsUnit.Pixel);
+
+                isSuccess = true;
+                newImage.Save(fileSaveUrl, System.Drawing.Imaging.ImageFormat.Jpeg);
+                //释放资源
+                newG.Dispose();
+                newImage.Dispose();
+                initImage.Dispose();
+            }
+            return isSuccess;
+        }
 
     }
 }
